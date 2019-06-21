@@ -8,19 +8,20 @@ User = distriproxy
 # take away as much privileges from the process as possible
 NoNewPrivileges=true
 PrivateTmp=true
-PrivateUsers=true
+#PrivateUsers=true
 ProtectHome=true
 
+#ProtectSystem=strict
 ProtectSystem=full
 PrivateDevices=true
-ProtectKernelTunables=true
-ProtectControlGroups=true
+#ProtectKernelTunables=true
+#ProtectControlGroups=true
 
 RestrictAddressFamilies=AF_INET AF_INET6
-RestrictRealtim=true
+#RestrictRealtim=true
 
 TasksMax=16
-MemoryHigh=64M
+#MemoryHigh=64M
 
 # disable all system calls
 SystemCallFilter=
