@@ -1,8 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"os"
+
+	"github.com/coreos/go-systemd/activation"
 )
 
 // config configures the upstream servers which are reachable at a given path.
@@ -37,11 +42,32 @@ func main() {
 	})
 
 	srv := http.Server{
-		Addr:    ":8080",
 		Handler: RejectProxyRequests(mux),
 	}
 
-	log.Printf("listening on %v", srv.Addr)
+	var listener net.Listener
 
-	log.Fatal(srv.ListenAndServe())
+	// try systemd socket activation first
+	listeners, err := activation.Listeners()
+	if err != nil {
+		panic(err)
+	}
+
+	switch len(listeners) {
+	case 0:
+		// no listeners found, listen manually
+		listener, err = net.Listen("tcp", ":8080")
+		if err != nil {
+			panic(err)
+		}
+	case 1:
+		// one listener supplied by systemd, use that one
+		listener = listeners[0]
+	default:
+		fmt.Fprintf(os.Stderr, "got %d listeners, expected one", len(listeners))
+		os.Exit(1)
+	}
+
+	log.Printf("listening on %v", listener.Addr())
+	log.Fatal(srv.Serve(listener))
 }
