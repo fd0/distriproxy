@@ -1,11 +1,14 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/coreos/go-systemd/activation"
 )
@@ -22,6 +25,34 @@ var config = map[string]string{
 	"/centos/":           "https://ftp.halifax.rwth-aachen.de/centos",
 	"/centos-vault/":     "http://vault.centos.org",
 	"/centos-debuginfo/": "http://debuginfo.centos.org",
+}
+
+// wait ten seconds for clients to finish their business before shutting down
+const shutdownTimeout = 10 * time.Second
+
+func gracefulShutdown(srv *http.Server) <-chan struct{} {
+	done := make(chan struct{})
+
+	// install signal handler for INT and TERM
+	ch := make(chan os.Signal, 2)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		// wait for signal
+		c := <-ch
+		log.Printf("received %v, shutting down gracefully", c)
+
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+
+		err := srv.Shutdown(ctx)
+		if err != nil {
+			log.Fatalf("shutdown failed: %v", err)
+		}
+		close(done)
+	}()
+
+	return done
 }
 
 func main() {
@@ -58,7 +89,8 @@ func main() {
 		// no listeners found, listen manually
 		listener, err = net.Listen("tcp", ":8080")
 		if err != nil {
-			panic(err)
+			log.Printf("unable to bind to port: %v", err)
+			os.Exit(1)
 		}
 
 		log.Printf("listening on %v", listener.Addr())
@@ -67,9 +99,14 @@ func main() {
 		listener = listeners[0]
 		log.Printf("listening on %v via systemd socket activation", listener.Addr())
 	default:
-		fmt.Fprintf(os.Stderr, "got %d listeners, expected one", len(listeners))
+		log.Printf("got %d listeners, expected one", len(listeners))
 		os.Exit(1)
 	}
 
-	log.Fatal(srv.Serve(listener))
+	done := gracefulShutdown(&srv)
+	err = srv.Serve(listener)
+	if err != nil && err != http.ErrServerClosed {
+		log.Printf("Serve returned error: %v", err)
+	}
+	<-done
 }
