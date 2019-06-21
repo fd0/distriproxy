@@ -5,6 +5,12 @@ import (
 	"net/http"
 )
 
+// config configures the upstream servers which are reachable at a given path.
+// The key of the map is the path, the value the upstream URL.
+//
+// For example, using the path `/foo` and the URL `https://example.com/bar`,
+// requesting `/foo/x.tar.gz` would request the URL
+// `https://example.com/bar/x.tar.gz` in the background.
 var config = map[string]string{
 	"/debian":            "https://ftp.halifax.rwth-aachen.de/debian",
 	"/debian-security":   "http://security.debian.org/debian-security",
