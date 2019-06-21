@@ -20,11 +20,11 @@ import (
 // requesting `/foo/x.tar.gz` would request the URL
 // `https://example.com/bar/x.tar.gz` in the background.
 var config = map[string]string{
-	"/debian":            "https://ftp.halifax.rwth-aachen.de/debian",
-	"/debian-security":   "http://security.debian.org/debian-security",
-	"/centos/":           "https://ftp.halifax.rwth-aachen.de/centos",
-	"/centos-vault/":     "http://vault.centos.org",
-	"/centos-debuginfo/": "http://debuginfo.centos.org",
+	"/debian":           "https://ftp.halifax.rwth-aachen.de/debian",
+	"/debian-security":  "http://security.debian.org/debian-security",
+	"/centos":           "https://ftp.halifax.rwth-aachen.de/centos",
+	"/centos-vault":     "http://vault.centos.org",
+	"/centos-debuginfo": "http://debuginfo.centos.org",
 }
 
 // wait ten seconds for clients to finish their business before shutting down
