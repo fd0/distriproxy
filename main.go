@@ -56,6 +56,10 @@ func gracefulShutdown(srv *http.Server) <-chan struct{} {
 }
 
 func main() {
+	// remove timestamp from logger
+	log.SetFlags(0)
+	log.SetOutput(os.Stderr)
+
 	mux := http.NewServeMux()
 
 	// make a copy of the default HTTP client to use by the proxy instances
