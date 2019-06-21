@@ -60,14 +60,16 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+
+		log.Printf("listening on %v", listener.Addr())
 	case 1:
 		// one listener supplied by systemd, use that one
 		listener = listeners[0]
+		log.Printf("using socket supplied by systemd for listening (%v)", listener.Addr())
 	default:
 		fmt.Fprintf(os.Stderr, "got %d listeners, expected one", len(listeners))
 		os.Exit(1)
 	}
 
-	log.Printf("listening on %v", listener.Addr())
 	log.Fatal(srv.Serve(listener))
 }
