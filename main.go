@@ -71,7 +71,7 @@ func main() {
 
 	// install catch-all handler to log invalid requests
 	mux.HandleFunc("/", func(rw http.ResponseWriter, req *http.Request) {
-		log.Printf("%v -> 404 not found", req.URL.Path)
+		log.Printf("%v %v %v -> 404 not found", req.RemoteAddr, req.Method, req.URL.Path)
 		rw.Header().Set("Server", "distriproxy")
 		rw.WriteHeader(http.StatusNotFound)
 	})
