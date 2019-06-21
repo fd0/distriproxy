@@ -39,16 +39,16 @@ func RejectProxyRequests(next http.Handler) http.Handler {
 	})
 }
 
-// RewriteProxy forwards requests repositories to an upstream server.
-type RewriteProxy struct {
+// Proxy forwards requests repositories to an upstream server.
+type Proxy struct {
 	Source string
 	Client *http.Client
 }
 
-// NewRewriteProxy initializes a new proxy repositories using upstream as
+// NewProxy initializes a new proxy repositories using upstream as
 // the source url for packages and files. If no http.Client is provided,
 // http.DefaultClient is used.
-func NewRewriteProxy(upstream string, client *http.Client) *RewriteProxy {
+func NewProxy(upstream string, client *http.Client) *Proxy {
 	// use the default client if none is provided
 	if client == nil {
 		client = http.DefaultClient
@@ -57,13 +57,13 @@ func NewRewriteProxy(upstream string, client *http.Client) *RewriteProxy {
 	// strip trailing slash, it is added back in the handler below
 	upstream = strings.TrimRight(upstream, "/")
 
-	return &RewriteProxy{
+	return &Proxy{
 		Source: upstream,
 		Client: client,
 	}
 }
 
-func (p *RewriteProxy) log(req *http.Request, msg string, args ...interface{}) {
+func (p *Proxy) log(req *http.Request, msg string, args ...interface{}) {
 	prefix := fmt.Sprintf("%v %v %v ", req.RemoteAddr, req.Method, req.URL.Path)
 	log.Printf(prefix+msg, args...)
 }
@@ -75,7 +75,7 @@ var filterHeadersToUpstream = map[string]struct{}{
 	"Host":       struct{}{},
 }
 
-func (p *RewriteProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (p *Proxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	upstreamURL := p.Source + req.URL.Path
 	upstreamReq, err := http.NewRequest(req.Method, upstreamURL, nil)
 	if err != nil {
