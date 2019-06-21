@@ -20,7 +20,7 @@ PrivateDevices=true
 RestrictAddressFamilies=AF_INET AF_INET6
 #RestrictRealtim=true
 
-TasksMax=16
+#TasksMax=16
 #MemoryHigh=64M
 
 # disable all system calls
