@@ -10,6 +10,35 @@ import (
 	"golang.org/x/net/context/ctxhttp"
 )
 
+// RejectProxyRequests rejects requests which are detected as proxy requests or
+// have HTTP methods other than GET/HEAD. For all other requests, the handler
+// next is called.
+func RejectProxyRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		// reject proxy requests
+		if req.URL.Host != "" {
+			log.Printf("%v reject proxy request for %v", req.RemoteAddr, req.URL)
+
+			rw.Header().Set("Server", "distriproxy")
+			rw.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(rw, "this is not a proxy\n")
+			return
+		}
+
+		// only allow GET and HEAD
+		if req.Method != http.MethodGet && req.Method != http.MethodHead {
+			log.Printf("%v reject invalid method", req.RemoteAddr)
+
+			rw.Header().Set("Server", "distriproxy")
+			rw.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		// otherwise pass the request to the next handler
+		next.ServeHTTP(rw, req)
+	})
+}
+
 // RewriteProxy forwards requests repositories to an upstream server.
 type RewriteProxy struct {
 	Source string

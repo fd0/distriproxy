@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 )
@@ -31,33 +30,9 @@ func main() {
 		rw.WriteHeader(http.StatusNotFound)
 	})
 
-	filterProxyRequests := func(rw http.ResponseWriter, req *http.Request) {
-		// reject proxy requests
-		if req.URL.Host != "" {
-			log.Printf("%v reject proxy request for %v", req.RemoteAddr, req.URL)
-
-			rw.Header().Set("Server", "distriproxy")
-			rw.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(rw, "this is not a proxy\n")
-			return
-		}
-
-		// only allow GET and HEAD
-		if req.Method != http.MethodGet && req.Method != http.MethodHead {
-			log.Printf("%v reject invalid method", req.RemoteAddr)
-
-			rw.Header().Set("Server", "distriproxy")
-			rw.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
-		// otherwise pass the request to the mux
-		mux.ServeHTTP(rw, req)
-	}
-
 	srv := http.Server{
 		Addr:    ":8080",
-		Handler: http.HandlerFunc(filterProxyRequests),
+		Handler: RejectProxyRequests(mux),
 	}
 
 	log.Printf("listening on %v", srv.Addr)
