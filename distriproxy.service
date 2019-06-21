@@ -1,0 +1,6 @@
+[Unit]
+Description = HTTP proxy server for distribution updates
+
+[Service]
+ExecStart = /usr/local/bin/distriproxy
+User = distriproxy
