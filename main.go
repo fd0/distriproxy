@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
+	"github.com/spf13/pflag"
 )
 
 // config configures the upstream servers which are reachable at a given path.
@@ -55,10 +56,48 @@ func gracefulShutdown(srv *http.Server) <-chan struct{} {
 	return done
 }
 
+var opts struct {
+	EnableTLS       bool
+	CertificateFile string
+	KeyFile         string
+}
+
 func main() {
 	// remove timestamp from logger
 	log.SetFlags(0)
 	log.SetOutput(os.Stderr)
+
+	flags := pflag.NewFlagSet("distriproxy", pflag.ContinueOnError)
+	flags.BoolVar(&opts.EnableTLS, "enable-tls", false, "Run a TLS service (requires key and cert paths)")
+	flags.StringVar(&opts.CertificateFile, "certificate", "", "Load TLS certificate from `filename`")
+	flags.StringVar(&opts.KeyFile, "key", "", "Load TLS key from `filename`")
+
+	err := flags.Parse(os.Args)
+	if err == pflag.ErrHelp {
+		os.Exit(0)
+	}
+
+	if err != nil {
+		log.Printf("%v, exiting", err)
+		os.Exit(1)
+	}
+
+	if len(flags.Args()) != 1 {
+		log.Printf("additional arguments passed to distriproxy: %v, exiting", flags.Args()[1:])
+		os.Exit(2)
+	}
+
+	if opts.EnableTLS {
+		if opts.CertificateFile == "" {
+			log.Printf("error: TLS enabled but --certificate not set, exiting")
+			os.Exit(1)
+		}
+
+		if opts.KeyFile == "" {
+			log.Printf("error: TLS enabled but --key not set, exiting")
+			os.Exit(1)
+		}
+	}
 
 	mux := http.NewServeMux()
 
@@ -97,18 +136,22 @@ func main() {
 			os.Exit(1)
 		}
 
-		log.Printf("listening on %v", listener.Addr())
+		log.Printf("listening on %v (TLS %v)", listener.Addr(), opts.EnableTLS)
 	case 1:
 		// one listener supplied by systemd, use that one
 		listener = listeners[0]
-		log.Printf("listening on %v via systemd socket activation", listener.Addr())
+		log.Printf("listening on %v via systemd socket activation (TLS %v)", listener.Addr(), opts.EnableTLS)
 	default:
 		log.Printf("got %d listeners, expected one", len(listeners))
 		os.Exit(1)
 	}
 
 	done := gracefulShutdown(&srv)
-	err = srv.Serve(listener)
+	if opts.EnableTLS {
+		err = srv.ServeTLS(listener, opts.CertificateFile, opts.KeyFile)
+	} else {
+		err = srv.Serve(listener)
+	}
 	if err != nil && err != http.ErrServerClosed {
 		log.Printf("Serve returned error: %v", err)
 	}
