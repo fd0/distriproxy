@@ -41,6 +41,7 @@ func RejectProxyRequests(next http.Handler) http.Handler {
 
 // Proxy forwards requests repositories to an upstream server.
 type Proxy struct {
+	Name   string
 	Source string
 	Client *http.Client
 }
@@ -48,7 +49,7 @@ type Proxy struct {
 // NewProxy initializes a new proxy repositories using upstream as
 // the source url for packages and files. If no http.Client is provided,
 // http.DefaultClient is used.
-func NewProxy(upstream string, client *http.Client) *Proxy {
+func NewProxy(prefix, upstream string, client *http.Client) http.Handler {
 	// use the default client if none is provided
 	if client == nil {
 		client = http.DefaultClient
@@ -57,14 +58,17 @@ func NewProxy(upstream string, client *http.Client) *Proxy {
 	// strip trailing slash, it is added back in the handler below
 	upstream = strings.TrimRight(upstream, "/")
 
-	return &Proxy{
+	p := &Proxy{
+		Name:   prefix,
 		Source: upstream,
 		Client: client,
 	}
+
+	return http.StripPrefix(prefix, p)
 }
 
 func (p *Proxy) log(req *http.Request, msg string, args ...interface{}) {
-	prefix := fmt.Sprintf("%v %v %v ", req.RemoteAddr, req.Method, req.URL.Path)
+	prefix := fmt.Sprintf("%v %v %v %v ", p.Name, req.RemoteAddr, req.Method, req.URL.Path)
 	log.Printf(prefix+msg, args...)
 }
 

@@ -149,7 +149,7 @@ func main() {
 	var client = *http.DefaultClient
 
 	for prefix, url := range config {
-		mux.Handle(prefix+"/", http.StripPrefix(prefix, NewProxy(url, &client)))
+		mux.Handle(prefix+"/", NewProxy(prefix, url, &client))
 	}
 
 	// install catch-all handler to log invalid requests
