@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/activation"
+	"github.com/hashicorp/hcl2/hcl"
 	"github.com/spf13/pflag"
 )
 
@@ -21,11 +22,12 @@ import (
 // requesting `/foo/x.tar.gz` would request the URL
 // `https://example.com/bar/x.tar.gz` in the background.
 var config = map[string]string{
-	"/debian":           "https://ftp.halifax.rwth-aachen.de/debian",
-	"/debian-security":  "http://security.debian.org/debian-security",
+	"/debian":           "https://deb.debian.org/debian",
+	"/debian-security":  "https://deb.debian.org/debian-security",
 	"/centos":           "https://ftp.halifax.rwth-aachen.de/centos",
 	"/centos-vault":     "http://vault.centos.org",
 	"/centos-debuginfo": "http://debuginfo.centos.org",
+	"/centos-epel":      "https://mirror.netcologne.de/fedora-epel",
 }
 
 // wait ten seconds for clients to finish their business before shutting down
@@ -56,21 +58,22 @@ func gracefulShutdown(srv *http.Server) <-chan struct{} {
 	return done
 }
 
-var opts struct {
+// Options collects values parsed from command-line flags
+type Options struct {
 	EnableTLS       bool
 	CertificateFile string
 	KeyFile         string
+	ConfigFile      string
 }
 
-func main() {
-	// remove timestamp from logger
-	log.SetFlags(0)
-	log.SetOutput(os.Stderr)
+func parseConfigOptions() Config {
+	var opts Options
 
 	flags := pflag.NewFlagSet("distriproxy", pflag.ContinueOnError)
 	flags.BoolVar(&opts.EnableTLS, "enable-tls", false, "Run a TLS service (requires key and cert paths)")
 	flags.StringVar(&opts.CertificateFile, "certificate", "", "Load TLS certificate from `filename`")
 	flags.StringVar(&opts.KeyFile, "key", "", "Load TLS key from `filename`")
+	flags.StringVar(&opts.ConfigFile, "config", "distriproxy.conf", "Load config from `filename`")
 
 	err := flags.Parse(os.Args)
 	if err == pflag.ErrHelp {
@@ -87,17 +90,58 @@ func main() {
 		os.Exit(2)
 	}
 
-	if opts.EnableTLS {
-		if opts.CertificateFile == "" {
+	cfg, err := ParseConfig(opts.ConfigFile)
+	if err != nil {
+		if e, ok := err.(hcl.Diagnostics); ok {
+			for _, diag := range e.Errs() {
+				log.Println(diag)
+			}
+		} else {
+			log.Print(err)
+		}
+		os.Exit(3)
+	}
+
+	// cli flags overwrite config file entries
+	if flags.Changed("enable-tls") {
+		cfg.TLSEnable = &opts.EnableTLS
+	}
+
+	if flags.Changed("certificate") {
+		cfg.TLSCertificateFile = &opts.CertificateFile
+	}
+
+	if flags.Changed("key") {
+		cfg.TLSKeyFile = &opts.KeyFile
+	}
+
+	if cfg.TLSEnable != nil && *cfg.TLSEnable {
+		if cfg.TLSCertificateFile == nil || *cfg.TLSCertificateFile == "" {
 			log.Printf("error: TLS enabled but --certificate not set, exiting")
 			os.Exit(1)
 		}
 
-		if opts.KeyFile == "" {
+		if cfg.TLSKeyFile == nil || *cfg.TLSKeyFile == "" {
 			log.Printf("error: TLS enabled but --key not set, exiting")
 			os.Exit(1)
 		}
 	}
+
+	// make sure we have a valid default value
+	if cfg.TLSEnable == nil {
+		var enable = false
+		cfg.TLSEnable = &enable
+	}
+
+	return cfg
+}
+
+func main() {
+	// remove timestamp from logger
+	log.SetFlags(0)
+	log.SetOutput(os.Stderr)
+
+	cfg := parseConfigOptions()
 
 	mux := http.NewServeMux()
 
@@ -136,19 +180,19 @@ func main() {
 			os.Exit(1)
 		}
 
-		log.Printf("listening on %v (TLS %v)", listener.Addr(), opts.EnableTLS)
+		log.Printf("listening on %v (TLS %v)", listener.Addr(), *cfg.TLSEnable)
 	case 1:
 		// one listener supplied by systemd, use that one
 		listener = listeners[0]
-		log.Printf("listening on %v via systemd socket activation (TLS %v)", listener.Addr(), opts.EnableTLS)
+		log.Printf("listening on %v via systemd socket activation (TLS %v)", listener.Addr(), *cfg.TLSEnable)
 	default:
 		log.Printf("got %d listeners, expected one", len(listeners))
 		os.Exit(1)
 	}
 
 	done := gracefulShutdown(&srv)
-	if opts.EnableTLS {
-		err = srv.ServeTLS(listener, opts.CertificateFile, opts.KeyFile)
+	if *cfg.TLSEnable {
+		err = srv.ServeTLS(listener, *cfg.TLSCertificateFile, *cfg.TLSKeyFile)
 	} else {
 		err = srv.Serve(listener)
 	}
