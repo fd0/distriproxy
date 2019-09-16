@@ -196,8 +196,15 @@ func main() {
 	} else {
 		err = srv.Serve(listener)
 	}
-	if err != nil && err != http.ErrServerClosed {
-		log.Printf("Serve returned error: %v", err)
+	if err == http.ErrServerClosed {
+		log.Printf("waiting for graceful shutdown")
+		<-done
+		log.Printf("shutdown completed")
+		err = nil
 	}
-	<-done
+
+	if err != nil {
+		log.Printf("Serve returned error: %v", err)
+		os.Exit(1)
+	}
 }
